@@ -68,10 +68,11 @@ from dataclasses import dataclass
 
 @dataclass
 class Position:
-    """Provides the position of the submarine. A self.move method is implemented."""
+    """Provides the position and aim of the submarine. A self.move method is implemented."""
 
     horizontal: int = 0
     depth: int = 0
+    aim: int = 0
 
     def move(self, input_file: str, sep: str = " ", relative_path: bool = True) -> None:
         """Given a file containing a sequence of motions, this methods changes the current
@@ -90,13 +91,25 @@ class Position:
         else:
             p = Path(input_file)
 
+        # we first load the input file of instruction into a pandas DataFrame
         with p.open("r") as file:
-            steps = pd.read_csv(file, sep=sep, names=["direction", "magnitude"])
+            df_instructions = pd.read_csv(
+                file, sep=sep, names=["direction", "magnitude"], chunksize=100
+            )
+            df_instructions = pd.concat((chunk for chunk in df_instructions))
 
-        steps = steps.groupby("direction").sum()
+        # we then read the instructions, row by row...
+        for _, instr in df_instructions.iterrows():
 
-        self.depth += steps.magnitude.down - steps.magnitude.up
-        self.horizontal += steps.magnitude.forward
+            # ... and change the position/aim accordingly
+            match instr.direction:
+                case "forward":
+                    self.horizontal += instr.magnitude
+                    self.depth += instr.magnitude * self.aim
+                case "up":
+                    self.aim -= instr.magnitude
+                case "down":
+                    self.aim += instr.magnitude
 
 
 if __name__ == "__main__":
@@ -106,4 +119,5 @@ if __name__ == "__main__":
 
     print(f"Horizontal position: {pos.horizontal}")
     print(f"Depth: {pos.depth}")
+    print(f"Aim: {pos.aim}")
     print(f"Product: {pos.depth * pos.horizontal}")
